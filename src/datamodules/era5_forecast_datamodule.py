@@ -1,5 +1,3 @@
-import os
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule
@@ -13,7 +11,7 @@ def collate_fn(batch):
     out_variables = batch[0][3]
     return inp, out, variables, out_variables
 
-class ERA5DataModule(LightningDataModule):
+class ERA5ForecastDataModule(LightningDataModule):
     def __init__(
         self,
         root_dir,

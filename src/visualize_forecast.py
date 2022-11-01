@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .models.forecast_module import ForecastLitModule
-from .datamodules.era5_datamodule import ERA5DataModule
+from .datamodules.era5_forecast_datamodule import ERA5ForecastDataModule
 
 
-def visualize_forecast(module: ForecastLitModule, datamodule: ERA5DataModule, save_dir=None):
+def visualize_forecast(module: ForecastLitModule, datamodule: ERA5ForecastDataModule, save_dir=None):
     if save_dir is not None:
         os.makedirs(save_dir, exist_ok=True)
 
