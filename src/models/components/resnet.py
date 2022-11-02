@@ -78,10 +78,13 @@ class ResNet(nn.Module):
 
         return self.final(self.activation(self.norm(x)))
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, out_variables, metric, lat):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, out_variables, metric, lat, return_pred=False):
         # B, C, H, W
         pred = self.predict(x)
-        return [m(pred, y, out_variables, lat) for m in metric], x
+        if return_pred:
+            return [m(pred, y, out_variables, lat) for m in metric], x, pred
+        else:
+            return [m(pred, y, out_variables, lat) for m in metric], x
 
     def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days):
         if steps > 1:

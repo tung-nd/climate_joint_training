@@ -72,6 +72,8 @@ class ERA5Forecast(Dataset):
         print (f'Creating {partition} dataset from netCDF files')
         super().__init__()
         
+        assert set(out_vars).issubset(set(in_vars))
+        
         self.root_dir = root_dir
         self.pred_range = pred_range
         self.years = years
@@ -141,6 +143,8 @@ class ERA5Downscaling(Dataset):
         print (f'Creating {partition} dataset')
         super().__init__()
         
+        assert set(out_vars).issubset(set(in_vars))
+        
         self.root_dir = root_dir
         self.highres_root_dir = highres_root_dir
         self.in_vars = in_vars
@@ -177,6 +181,7 @@ class ERA5Downscaling(Dataset):
         assert len(self.inp_data) == len(self.out_data)
         
         self.lat, self.lon = get_lat_lon(root_dir, in_vars, years)
+        self.highres_lat, self.highres_lon = get_lat_lon(highres_root_dir, out_vars, years)
 
         self.downscale_ratio = self.out_data.shape[-1] // self.inp_data.shape[-1]
 
@@ -211,6 +216,114 @@ class ERA5Downscaling(Dataset):
         return len(self.inp_data)
 
 
+class ERA5Joint(Dataset):
+    def __init__(
+        self,
+        root_dir,
+        highres_root_dir,
+        in_vars,
+        in_pressure_levels,
+        out_forecast_vars,
+        out_forecast_pressure_levels,
+        out_downscale_vars,
+        out_downscale_pressure_levels,
+        pred_range,
+        years,
+        subsample=1,
+        partition='train'
+    ):
+        print (f'Creating {partition} dataset')
+        super().__init__()
+        
+        assert set(out_forecast_vars).issubset(set(in_vars)) and set(out_downscale_vars).issubset(set(out_forecast_vars))
+        
+        self.root_dir = root_dir
+        self.highres_root_dir = highres_root_dir
+        
+        self.data_dict, _ = load_from_nc(root_dir, in_vars, in_pressure_levels, years)
+        self.highres_data_dict, _ = load_from_nc(highres_root_dir, out_downscale_vars, out_downscale_pressure_levels, years)
+
+        # variables used for input
+        in_vars_pressure = []
+        for var in in_vars:
+            if var in in_pressure_levels:
+                for p in in_pressure_levels[var]:
+                    in_vars_pressure.append(var + '_' + str(p))
+            else:
+                in_vars_pressure.append(var)
+        self.in_vars = in_vars_pressure
+        inp_data = xr.concat([self.data_dict[k] for k in in_vars_pressure], dim='level')
+        
+        # variables to be forecasted
+        out_forecast_vars_pressure = []
+        for var in out_forecast_vars:
+            if var in out_forecast_pressure_levels:
+                for p in out_forecast_pressure_levels[var]:
+                    out_forecast_vars_pressure.append(var + '_' + str(p))
+            else:
+                out_forecast_vars_pressure.append(var)
+        self.out_forecast_vars = out_forecast_vars_pressure
+        out_forecast_data = xr.concat([self.data_dict[k] for k in out_forecast_vars_pressure], dim='level')
+                
+        # variables to be downscaled
+        out_downscale_vars_pressure = []
+        for var in out_downscale_vars:
+            if var in out_downscale_pressure_levels:
+                for p in out_downscale_pressure_levels[var]:
+                    out_downscale_vars_pressure.append(var + '_' + str(p))
+            else:
+                out_downscale_vars_pressure.append(var)
+        self.out_downscale_vars = out_downscale_vars_pressure
+        out_downscale_data = xr.concat([self.highres_data_dict[k] for k in out_downscale_vars_pressure], dim='level')
+
+        self.inp_data = inp_data[0 : -pred_range : subsample].to_numpy().astype(np.float32)
+        self.out_forecast_data = out_forecast_data[pred_range::subsample].to_numpy().astype(np.float32)
+        self.out_downscale_data = out_downscale_data[pred_range::subsample].to_numpy().astype(np.float32)
+
+        assert len(self.inp_data) == len(self.out_forecast_data) == len(self.out_downscale_data)
+        
+        self.lat, self.lon = get_lat_lon(root_dir, in_vars, years)
+        self.highres_lat, self.highres_lon = get_lat_lon(highres_root_dir, out_downscale_vars, years)
+
+        self.downscale_ratio = self.out_downscale_data.shape[-1] // self.out_forecast_data.shape[-1]
+
+        if partition == 'train':
+            self.inp_transform = self.get_normalize(self.inp_data)
+            self.out_forecast_transform = self.get_normalize(self.out_forecast_data)
+            self.out_downscale_transform = self.get_normalize(self.out_downscale_data)
+        else:
+            self.inp_transform = None
+            self.out_forecast_transform = None
+            self.out_downscale_transform = None
+
+        del self.data_dict
+        del self.highres_data_dict
+
+    def get_normalize(self, data):
+        mean = np.mean(data, axis=(0, 2, 3))
+        std = np.std(data, axis=(0, 2, 3))
+        return transforms.Normalize(mean, std)
+
+    def set_normalize(self, inp_normalize, out_forecast_normalize, out_downscale_normalize): # for val and test
+        self.inp_transform = inp_normalize
+        self.out_forecast_transform = out_forecast_normalize
+        self.out_downscale_transform = out_downscale_normalize
+
+    def get_climatology(self):
+        return torch.from_numpy(self.out_forecast_data.mean(axis=0))
+
+    def __getitem__(self, index):
+        inp = torch.from_numpy(self.inp_data[index])
+        out_forecast = torch.from_numpy(self.out_forecast_data[index])
+        out_downscale = torch.from_numpy(self.out_downscale_data[index])
+        return self.inp_transform(inp), self.out_forecast_transform(out_forecast), \
+                self.out_downscale_transform(out_downscale), \
+                self.in_vars, self.out_forecast_vars, self.out_downscale_vars
+
+    def __len__(self):
+        return len(self.inp_data)
+
+
 # dataset = ERA5('/datadrive/datasets/5.625deg', ['2m_temperature', '10m_u_component_of_wind', '10m_v_component_of_wind', 'geopotential'], [1979, 1980])
 # for k in dataset.data_dict.keys():
 #     print (k)
@@ -226,3 +339,22 @@ class ERA5Downscaling(Dataset):
 # x, y = dataset[0]
 # print (x.shape)
 # print (y.shape)
+
+# dataset = ERA5Joint(
+#     '/home/tungnd/climate_pretraining/era5_data/5.625deg/',
+#     '/home/tungnd/climate_pretraining/era5_data/2.8125deg/',
+#     ['2m_temperature', '10m_u_component_of_wind', '10m_v_component_of_wind', 'geopotential'],
+#     {'geopotential': [50, 250, 500, 600, 700, 850, 925]},
+#     ['2m_temperature', '10m_u_component_of_wind', '10m_v_component_of_wind', 'geopotential'],
+#     {'geopotential': [50, 250, 500, 600, 700, 850, 925]},
+#     ['2m_temperature', 'geopotential'],
+#     {'geopotential': [500]},
+#     pred_range=72, years=range(1979, 1981), subsample=1, partition='train'
+# )
+# x, y, z, in_vars, out_forecast_vars, out_downscale_vars = dataset[0]
+# print (x.shape)
+# print (in_vars)
+# print (y.shape)
+# print (out_forecast_vars)
+# print (z.shape)
+# print (out_downscale_vars)
