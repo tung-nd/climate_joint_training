@@ -30,7 +30,7 @@ def load_from_nc(data_dir, variables, pressure_levels, years):
         if name in SINGLE_LEVEL_VARS:
             data_dict[name] = []
         elif name in PRESSURE_LEVEL_VARS:
-            for level in DEFAULT_PRESSURE_LEVELS:
+            for level in pressure_levels[name]:
                 data_dict[f'{name}_{level}'] = []
         else:
             raise NotImplementedError(f'{name} is not either in single-level or pressure-level dict')
@@ -134,6 +134,82 @@ class ERA5Forecast(Dataset):
 
     def __len__(self):
         return len(self.inp_data)
+    
+
+class ERA5Downscaling(Dataset):
+    def __init__(self, root_dir, highres_root_dir, in_vars, in_pressure_levels, out_vars, out_pressure_levels, years, subsample=1, partition='train'):
+        print (f'Creating {partition} dataset')
+        super().__init__()
+        
+        self.root_dir = root_dir
+        self.highres_root_dir = highres_root_dir
+        self.in_vars = in_vars
+        self.in_pressure_levels = in_pressure_levels
+        self.out_vars = out_vars
+        self.out_pressure_levels = out_pressure_levels
+        
+        self.data_dict, _ = load_from_nc(root_dir, in_vars, in_pressure_levels, years)
+        self.highres_data_dict, _ = load_from_nc(highres_root_dir, out_vars, out_pressure_levels, years)
+
+        in_vars_pressure = []
+        for var in in_vars:
+            if var in in_pressure_levels:
+                for p in in_pressure_levels[var]:
+                    in_vars_pressure.append(var + '_' + str(p))
+            else:
+                in_vars_pressure.append(var)
+        self.in_vars = in_vars_pressure
+        inp_data = xr.concat([self.data_dict[k] for k in in_vars_pressure], dim='level')
+                
+        out_vars_pressure = []
+        for var in out_vars:
+            if var in out_pressure_levels:
+                for p in out_pressure_levels[var]:
+                    out_vars_pressure.append(var + '_' + str(p))
+            else:
+                out_vars_pressure.append(var)
+        self.out_vars = out_vars_pressure
+        out_data = xr.concat([self.highres_data_dict[k] for k in out_vars_pressure], dim='level')
+
+        self.inp_data = inp_data[::subsample].to_numpy().astype(np.float32)
+        self.out_data = out_data[::subsample].to_numpy().astype(np.float32)
+
+        assert len(self.inp_data) == len(self.out_data)
+        
+        self.lat, self.lon = get_lat_lon(root_dir, in_vars, years)
+
+        self.downscale_ratio = self.out_data.shape[-1] // self.inp_data.shape[-1]
+
+        if partition == 'train':
+            self.inp_transform = self.get_normalize(self.inp_data)
+            self.out_transform = self.get_normalize(self.out_data)
+        else:
+            self.inp_transform = None
+            self.out_transform = None
+
+        del self.data_dict
+        del self.highres_data_dict
+
+    def get_normalize(self, data):
+        mean = np.mean(data, axis=(0, 2, 3))
+        std = np.std(data, axis=(0, 2, 3))
+        return transforms.Normalize(mean, std)
+
+    def set_normalize(self, inp_normalize, out_normalize): # for val and test
+        self.inp_transform = inp_normalize
+        self.out_transform = out_normalize
+
+    def get_climatology(self):
+        return torch.from_numpy(self.out_data.mean(axis=0))
+
+    def __getitem__(self, index):
+        inp = torch.from_numpy(self.inp_data[index])
+        out = torch.from_numpy(self.out_data[index])
+        return self.inp_transform(inp), self.out_transform(out), self.in_vars, self.out_vars
+
+    def __len__(self):
+        return len(self.inp_data)
+
 
 # dataset = ERA5('/datadrive/datasets/5.625deg', ['2m_temperature', '10m_u_component_of_wind', '10m_v_component_of_wind', 'geopotential'], [1979, 1980])
 # for k in dataset.data_dict.keys():
