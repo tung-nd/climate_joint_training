@@ -16,7 +16,9 @@ class ERA5ForecastDataModule(LightningDataModule):
         self,
         root_dir,
         inp_vars,
+        inp_pressure_levels,
         out_vars,
+        out_pressure_levels,
         train_start_year,
         val_start_year,
         test_start_year,
@@ -36,14 +38,14 @@ class ERA5ForecastDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         train_years = range(train_start_year, val_start_year)
-        self.train_dataset = ERA5Forecast(root_dir, inp_vars, out_vars, pred_range, train_years, subsample, 'train')
+        self.train_dataset = ERA5Forecast(root_dir, inp_vars, inp_pressure_levels, out_vars, out_pressure_levels, pred_range, train_years, subsample, 'train')
 
         val_years = range(val_start_year, test_start_year)
-        self.val_dataset = ERA5Forecast(root_dir, inp_vars, out_vars, pred_range, val_years, subsample, 'val')
+        self.val_dataset = ERA5Forecast(root_dir, inp_vars, inp_pressure_levels, out_vars, out_pressure_levels, pred_range, val_years, subsample, 'val')
         self.val_dataset.set_normalize(self.train_dataset.inp_transform, self.train_dataset.out_transform)
 
         test_years = range(test_start_year, end_year + 1)
-        self.test_dataset = ERA5Forecast(root_dir, inp_vars, out_vars, pred_range, test_years, subsample, 'test')
+        self.test_dataset = ERA5Forecast(root_dir, inp_vars, inp_pressure_levels, out_vars, out_pressure_levels, pred_range, test_years, subsample, 'test')
         self.test_dataset.set_normalize(self.train_dataset.inp_transform, self.train_dataset.out_transform)
 
     def get_lat_lon(self):

@@ -2,7 +2,7 @@ seed_everything: 42
 
 # ---------------------------- TRAINER -------------------------------------------
 trainer:
-  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/mnt/climate_pretraining/outputs/vit}
+  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/home/tungnd/climate_joint_training/outputs/resnet}
 
   precision: 16
 
@@ -63,7 +63,7 @@ trainer:
 
 # ---------------------------- MODEL -------------------------------------------
 model:
-  optimizer: "adam"
+  optimizer: "adamw"
   lr: 0.0005
   weight_decay: 1e-5
   warmup_epochs: 5
@@ -74,25 +74,45 @@ model:
   net:
     class_path: src.models.components.resnet.ResNet
     init_args:
-      in_channels: 3
-      hidden_channels: 64
-      out_channels: 2
+      in_channels: 24
+      hidden_channels: 128
+      out_channels: 24
       n_blocks: 28
 
 # ---------------------------- DATA -------------------------------------------
 data:
-  root_dir: /datadrive/datasets/5.625deg
+  root_dir: /home/tungnd/climate_pretraining/era5_data/5.625deg
   inp_vars: [
-      "2m_temperature",
-      "10m_u_component_of_wind",
-      "10m_v_component_of_wind",
-    ]
-  out_vars: ["2m_temperature"]
+    "2m_temperature",
+    "10m_u_component_of_wind",
+    "10m_v_component_of_wind",
+    "geopotential",
+    "specific_humidity",
+    "temperature",
+  ]
+  inp_pressure_levels: {
+    "geopotential": [50, 250, 500, 600, 700, 850, 925],
+    "specific_humidity": [50, 250, 500, 600, 700, 850, 925],
+    "temperature": [50, 250, 500, 600, 700, 850, 925],
+  }
+  out_vars: [
+    "2m_temperature",
+    "10m_u_component_of_wind",
+    "10m_v_component_of_wind",
+    "geopotential",
+    "specific_humidity",
+    "temperature",
+  ]
+  out_pressure_levels: {
+    "geopotential": [50, 250, 500, 600, 700, 850, 925],
+    "specific_humidity": [50, 250, 500, 600, 700, 850, 925],
+    "temperature": [50, 250, 500, 600, 700, 850, 925],
+  }
   train_start_year: 1979
   val_start_year: 2015
   test_start_year: 2017
   end_year: 2018
-  pred_range: 6
+  pred_range: 72
   subsample: 1
   batch_size: 128
   num_workers: 2

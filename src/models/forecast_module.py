@@ -69,14 +69,10 @@ class ForecastLitModule(LightningModule):
 
     def validation_step(self, batch: Any, batch_idx: int):
         x, y, variables, out_variables = batch
-        pred_steps = y.shape[1]
-        pred_range = self.pred_range
-
-        default_days = [1, 3, 5]
-        days_each_step = pred_range / 24
-        default_steps = [d / days_each_step for d in default_days if d % days_each_step == 0]
-        steps = [int(s) for s in default_steps if s <= pred_steps and s > 0]
-        days = [int(s * pred_range / 24) for s in steps]
+        
+        pred_steps = 1
+        log_steps = [1]
+        log_days = [int(self.pred_range / 24)]
 
         all_loss_dicts, _ = self.net.rollout(
             x,
@@ -88,8 +84,8 @@ class ForecastLitModule(LightningModule):
             [lat_weighted_rmse, lat_weighted_acc],
             self.denormalization,
             lat=self.lat,
-            log_steps=steps,
-            log_days=days,
+            log_steps=log_steps,
+            log_days=log_days,
         )
         loss_dict = {}
         for d in all_loss_dicts:
@@ -109,14 +105,10 @@ class ForecastLitModule(LightningModule):
 
     def test_step(self, batch: Any, batch_idx: int):
         x, y, variables, out_variables = batch
-        pred_steps = y.shape[1]
-        pred_range = self.pred_range
-
-        default_days = [1, 3, 5]
-        days_each_step = pred_range / 24
-        default_steps = [d / days_each_step for d in default_days if d % days_each_step == 0]
-        steps = [int(s) for s in default_steps if s <= pred_steps and s > 0]
-        days = [int(s * pred_range / 24) for s in steps]
+        
+        pred_steps = 1
+        log_steps = [1]
+        log_days = [int(self.pred_range / 24)]
 
         all_loss_dicts, _ = self.net.rollout(
             x,
@@ -128,8 +120,8 @@ class ForecastLitModule(LightningModule):
             [lat_weighted_rmse, lat_weighted_acc],
             self.denormalization,
             lat=self.lat,
-            log_steps=steps,
-            log_days=days,
+            log_steps=log_steps,
+            log_days=log_days,
         )
 
         loss_dict = {}
