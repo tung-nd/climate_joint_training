@@ -45,10 +45,7 @@ PRESSURE_LEVEL_VARS = [
     "relative_humidity",
     "specific_humidity",
 ]
-
-DEFAULT_PRESSURE_LEVELS = [50, 250, 500, 600, 700, 850, 925]
-
-CONSTANTS = ['orography', 'lsm', 'slt', 'lat2d', 'lon2d']
+ALL_LEVELS = [50, 250, 500, 600, 700, 850, 925, 1000]
 
 NAME_LEVEL_TO_VAR_LEVEL = {}
 
@@ -56,7 +53,7 @@ for var in SINGLE_LEVEL_VARS:
     NAME_LEVEL_TO_VAR_LEVEL[var] = NAME_TO_VAR[var]
 
 for var in PRESSURE_LEVEL_VARS:
-    for l in DEFAULT_PRESSURE_LEVELS:
+    for l in ALL_LEVELS:
         NAME_LEVEL_TO_VAR_LEVEL[var + "_" + str(l)] = NAME_TO_VAR[var] + "_" + str(l)
 
 VAR_LEVEL_TO_NAME_LEVEL = {v: k for k, v in NAME_LEVEL_TO_VAR_LEVEL.items()}

@@ -2,7 +2,7 @@ seed_everything: 42
 
 # ---------------------------- TRAINER -------------------------------------------
 trainer:
-  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/home/tungnd/climate_joint_training/outputs/resnet}
+  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/home/tungnd/climate_joint_training/outputs/forecast_highres/resnet}
 
   precision: 16
 
@@ -76,40 +76,44 @@ model:
     init_args:
       in_channels: 24
       hidden_channels: 128
-      out_channels: 24
+      out_channels: 3
       n_blocks: 28
 
 # ---------------------------- DATA -------------------------------------------
 data:
-  root_dir: /home/tungnd/climate_pretraining/era5_data/5.625deg
-  inp_vars: [
-    "2m_temperature",
-    "10m_u_component_of_wind",
-    "10m_v_component_of_wind",
-    "geopotential",
-    "specific_humidity",
-    "temperature",
+  root_dir: /data0/datasets/weatherbench/data/weatherbench/era5/2.8125deg_equally_np
+  variables: [
+    "t2m",
+    "u10",
+    "v10",
+    "z_50",
+    "z_250",
+    "z_500",
+    "z_600",
+    "z_700",
+    "z_850",
+    "z_925",
+    "t_50",
+    "t_250",
+    "t_500",
+    "t_600",
+    "t_700",
+    "t_850",
+    "t_925",
+    "q_50",
+    "q_250",
+    "q_500",
+    "q_600",
+    "q_700",
+    "q_850",
+    "q_925",
   ]
-  inp_pressure_levels: {
-    "geopotential": [50, 250, 500, 600, 700, 850, 925],
-    "specific_humidity": [50, 250, 500, 600, 700, 850, 925],
-    "temperature": [50, 250, 500, 600, 700, 850, 925],
-  }
-  out_vars: [
-    "2m_temperature",
-    "geopotential",
-    "temperature",
-  ]
-  out_pressure_levels: {
-    "geopotential": [500],
-    "temperature": [850],
-  }
-  train_start_year: 1979
-  val_start_year: 2015
-  test_start_year: 2017
-  end_year: 2018
+  out_variables: ["z_500", "t_850", "t2m"]
   pred_range: 72
+  # history: 1
+  # window: 0
   subsample: 1
+  buffer_size: 10000
   batch_size: 128
   num_workers: 2
   pin_memory: False
