@@ -4,7 +4,6 @@ import torch
 from pytorch_lightning import LightningModule
 from torchvision.transforms import transforms
 
-from src.models.components.resnet import ResNet
 from src.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from src.utils.metrics import lat_weighted_acc, lat_weighted_mse, lat_weighted_rmse, mse, rmse, pearson, mean_bias
 
@@ -12,8 +11,8 @@ from src.utils.metrics import lat_weighted_acc, lat_weighted_mse, lat_weighted_r
 class JointLitModule(LightningModule):
     def __init__(
         self,
-        forecast_net: ResNet,
-        downscale_net: ResNet,
+        forecast_net: torch.nn.Module,
+        downscale_net: torch.nn.Module,
         optimize_forecast: bool = False, # additional loss on forecast
         optimizer: str = 'adam',
         lr: float = 0.001,

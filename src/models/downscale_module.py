@@ -4,7 +4,6 @@ import torch
 from pytorch_lightning import LightningModule
 from torchvision.transforms import transforms
 
-from src.models.components.resnet import ResNet
 from src.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from src.utils.metrics import mse, rmse, pearson, mean_bias
 
@@ -12,7 +11,7 @@ from src.utils.metrics import mse, rmse, pearson, mean_bias
 class DownscaleLitModule(LightningModule):
     def __init__(
         self,
-        net: ResNet,
+        net: torch.nn.Module,
         optimizer: str = 'adam',
         lr: float = 0.001,
         weight_decay: float = 0.005,
