@@ -157,14 +157,20 @@ class Unet(nn.Module):
 
         return self.final(self.activation(self.norm(x)))
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, out_variables, metric, lat):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, out_variables, metric, lat, return_pred=False):
         # B, C, H, W
         pred = self.predict(x)
-        return [m(pred, y, out_variables, lat) for m in metric], x
+        if return_pred:
+            return [m(pred, y, out_variables, lat) for m in metric], x, pred
+        else:
+            return [m(pred, y, out_variables, lat) for m in metric], x
 
-    def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days):
+    def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days, preds=None):
         if steps > 1:
             assert len(variables) == len(out_variables)
+            
+        if preds is not None:
+            return [m(preds.unsqueeze(1), y.unsqueeze(1), clim, transform, out_variables, lat, log_steps, log_days) for m in metric], preds
 
         preds = []
         for _ in range(steps):
@@ -179,7 +185,7 @@ class Unet(nn.Module):
     def upsample(self, x, y, out_vars, transform, metric):
         with torch.no_grad():
             pred = self.predict(x)
-        return [m(pred, y, transform, out_vars) for m in metric], 
+        return [m(pred, y, transform, out_vars) for m in metric], pred
 
 # model = Unet(in_channels=2, out_channels=2).cuda()
 # x = torch.randn((64, 2, 32, 64)).cuda()
