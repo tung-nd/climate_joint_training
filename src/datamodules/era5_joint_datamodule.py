@@ -69,6 +69,9 @@ class ERA5JointDataModule(LightningDataModule):
 
     def get_lat_lon(self):
         return self.train_dataset.lat, self.train_dataset.lon
+    
+    def get_lat_lon_highres(self):
+        return self.train_dataset.highres_lat, self.train_dataset.highres_lon
 
     def get_out_forecast_transforms(self):
         return self.train_dataset.out_forecast_transform
@@ -81,6 +84,14 @@ class ERA5JointDataModule(LightningDataModule):
             return self.val_dataset.get_climatology()
         elif split == 'test':
             return self.test_dataset.get_climatology()
+        else:
+            raise NotImplementedError
+    
+    def get_climatology_highres(self, split='val'):
+        if split == 'val':
+            return self.val_dataset.get_climatology_highres()
+        elif split == 'test':
+            return self.test_dataset.get_climatology_highres()
         else:
             raise NotImplementedError
 

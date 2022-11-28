@@ -86,9 +86,12 @@ class ResNet(nn.Module):
         else:
             return [m(pred, y, out_variables, lat) for m in metric], x
 
-    def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days):
+    def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days, preds=None):
         if steps > 1:
             assert len(variables) == len(out_variables)
+            
+        if preds is not None:
+            return [m(preds.unsqueeze(1), y.unsqueeze(1), clim, transform, out_variables, lat, log_steps, log_days) for m in metric], preds
 
         preds = []
         for _ in range(steps):

@@ -311,6 +311,9 @@ class ERA5Joint(Dataset):
 
     def get_climatology(self):
         return torch.from_numpy(self.out_forecast_data.mean(axis=0))
+    
+    def get_climatology_highres(self):
+        return torch.from_numpy(self.out_downscale_data.mean(axis=0))
 
     def __getitem__(self, index):
         inp = torch.from_numpy(self.inp_data[index])

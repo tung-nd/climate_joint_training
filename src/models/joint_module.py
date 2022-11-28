@@ -47,6 +47,10 @@ class JointLitModule(LightningModule):
     def set_lat_lon(self, lat, lon):
         self.lat = lat
         self.lon = lon
+        
+    def set_highres_lat_lon(self, lat, lon):
+        self.lat_highres = lat
+        self.lon_highres = lon
 
     def set_pred_range(self, r):
         self.pred_range = r
@@ -56,6 +60,12 @@ class JointLitModule(LightningModule):
 
     def set_test_climatology(self, clim):
         self.test_clim = clim
+        
+    def set_val_climatology_highres(self, clim):
+        self.val_clim_highres = clim
+
+    def set_test_climatology_highres(self, clim):
+        self.test_clim_highres = clim
 
     def training_step(self, batch: Any, batch_idx: int):
         inp, out_forecast, out_downscale, _, out_forecast_vars, out_downscale_vars = batch
@@ -129,8 +139,8 @@ class JointLitModule(LightningModule):
             )
             
         # downscale
-        all_downscale_loss_dicts, _ = self.downscale_net.upsample(
-            forecast_pred.squeeze(), out_downscale, out_downscale_vars, self.downscale_denormalization, [rmse, pearson, mean_bias]
+        all_downscale_loss_dicts, highres_pred = self.downscale_net.upsample(
+            forecast_pred.squeeze(1), out_downscale, out_downscale_vars, self.downscale_denormalization, [rmse, pearson, mean_bias]
         )
         loss_downscale_dict = {}
         for d in all_downscale_loss_dicts:
@@ -146,6 +156,37 @@ class JointLitModule(LightningModule):
                 prog_bar=False,
                 sync_dist=True,
             )
+            
+        # forecast metrics on downscaled prediction
+        all_forecast_highres_loss_dics, _ = self.forecast_net.rollout(
+            x=None,
+            y=out_downscale,
+            preds=highres_pred,
+            clim=self.val_clim_highres,
+            variables=inp_vars,
+            out_variables=out_downscale_vars,
+            steps=pred_steps,
+            metric=[lat_weighted_rmse, lat_weighted_acc],
+            transform=self.downscale_denormalization,
+            lat=self.lat_highres,
+            log_steps=log_steps,
+            log_days=log_days
+        )
+        loss_forecast_highres_dict = {}
+        for d in all_forecast_highres_loss_dics:
+            for k in d.keys():
+                loss_forecast_highres_dict[k] = d[k]
+
+        for var in loss_forecast_highres_dict.keys():
+            self.log(
+                "val_joint/" + "forecast_highres_" + var,
+                loss_forecast_highres_dict[var],
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+        
 
     def test_step(self, batch: Any, batch_idx: int):
         inp, out_forecast, out_downscale, inp_vars, out_forecast_vars, out_downscale_vars = batch
@@ -184,8 +225,8 @@ class JointLitModule(LightningModule):
             )
             
         # downscale
-        all_downscale_loss_dicts, _ = self.downscale_net.upsample(
-            forecast_pred.squeeze(), out_downscale, out_downscale_vars, self.downscale_denormalization, [rmse, pearson, mean_bias]
+        all_downscale_loss_dicts, highres_pred = self.downscale_net.upsample(
+            forecast_pred.squeeze(1), out_downscale, out_downscale_vars, self.downscale_denormalization, [rmse, pearson, mean_bias]
         )
         loss_downscale_dict = {}
         for d in all_downscale_loss_dicts:
@@ -196,6 +237,36 @@ class JointLitModule(LightningModule):
             self.log(
                 "test_joint/" + "downscale_" + var,
                 loss_downscale_dict[var],
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            
+        # forecast metrics on downscaled prediction
+        all_forecast_highres_loss_dics, _ = self.forecast_net.rollout(
+            x=None,
+            y=out_downscale,
+            preds=highres_pred,
+            clim=self.test_clim_highres,
+            variables=inp_vars,
+            out_variables=out_downscale_vars,
+            steps=pred_steps,
+            metric=[lat_weighted_rmse, lat_weighted_acc],
+            transform=self.downscale_denormalization,
+            lat=self.lat_highres,
+            log_steps=log_steps,
+            log_days=log_days
+        )
+        loss_forecast_highres_dict = {}
+        for d in all_forecast_highres_loss_dics:
+            for k in d.keys():
+                loss_forecast_highres_dict[k] = d[k]
+
+        for var in loss_forecast_highres_dict.keys():
+            self.log(
+                "test_joint/" + "forecast_highres_" + var,
+                loss_forecast_highres_dict[var],
                 on_step=False,
                 on_epoch=True,
                 prog_bar=False,
