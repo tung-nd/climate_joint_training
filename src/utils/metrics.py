@@ -11,15 +11,19 @@ def mse(pred, y, vars, lat=None, mask=None):
     """
     loss = (pred - y) ** 2
 
-    if mask is None:
-        mask = torch.ones_like(loss)[:, 0]
-
     loss_dict = {}
 
     with torch.no_grad():
         for i, var in enumerate(vars):
-            loss_dict[var] = (loss[:, i] * mask).sum() / mask.sum()
-    loss_dict["loss"] = (loss.mean(dim=1) * mask).sum() / mask.sum()
+            if mask is not None:
+                loss_dict[var] = (loss[:, i] * mask).sum() / mask.sum()
+            else:
+                loss_dict[var] = loss[:, i].mean()
+    
+    if mask is not None:
+        loss_dict["loss"] = (loss.mean(dim=1) * mask).sum() / mask.sum()
+    else:
+        loss_dict["loss"] = loss.mean(dim=1).mean()
 
     return loss_dict
 
@@ -39,15 +43,19 @@ def lat_weighted_mse(pred, y, vars, lat, mask=None):
     w_lat = w_lat / w_lat.mean()  # (H, )
     w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(error.device)  # (1, H, 1)
 
-    if mask is None:
-        mask = torch.ones_like(error)[:, 0]
-
     loss_dict = {}
     with torch.no_grad():
         for i, var in enumerate(vars):
-            loss_dict[var] = (error[:, i] * w_lat * mask).sum() / mask.sum()
+            if mask is not None:
+                loss_dict[var] = (error[:, i] * w_lat * mask).sum() / mask.sum()
+            else:
+                loss_dict[var] = (error[:, i] * w_lat).mean()
 
-    loss_dict["loss"] = ((error * w_lat.unsqueeze(1)).mean(dim=1) * mask).sum() / mask.sum()
+    if mask is not None:
+        loss_dict["loss"] = ((error * w_lat.unsqueeze(1)).mean(dim=1) * mask).sum() / mask.sum()
+    else:
+        loss_dict["loss"] = (error * w_lat.unsqueeze(1)).mean(dim=1).mean()
+    
     return loss_dict
 
 
