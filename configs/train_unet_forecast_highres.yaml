@@ -40,20 +40,20 @@ trainer:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
         dirpath: "${trainer.default_root_dir}/checkpoints"
-        # monitor: "val/w_rmse" # name of the logged metric which determines when model is improving
-        # mode: "min" # "max" means higher metric value is better, can be also "min"
-        # save_top_k: 1 # save k best models (determined by above metric)
+        monitor: "val/w_rmse" # name of the logged metric which determines when model is improving
+        mode: "min" # "max" means higher metric value is better, can be also "min"
+        save_top_k: 1 # save k best models (determined by above metric)
         save_last: True # additionaly always save model from last epoch
         verbose: False
         filename: "epoch_{epoch:03d}"
         auto_insert_metric_name: False
 
-    # - class_path: pytorch_lightning.callbacks.EarlyStopping
-    #   init_args:
-    #     monitor: "train/loss" # name of the logged metric which determines when model is improving
-    #     mode: "min" # "max" means higher metric value is better, can be also "min"
-    #     patience: 100 # how many validation epochs of not improving until training stops
-    #     min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement
+    - class_path: pytorch_lightning.callbacks.EarlyStopping
+      init_args:
+        monitor: "val/w_rmse" # name of the logged metric which determines when model is improving
+        mode: "min" # "max" means higher metric value is better, can be also "min"
+        patience: 5 # how many validation epochs of not improving until training stops
+        min_delta: 0. # minimum change in the monitored metric needed to qualify as an improvement
 
     - class_path: pytorch_lightning.callbacks.RichModelSummary
       init_args:
@@ -75,13 +75,13 @@ model:
     class_path: src.models.components.unet.Unet
     init_args:
       in_channels: 24
-      hidden_channels: 128
+      hidden_channels: 64
       out_channels: 3
       n_blocks: 2
 
 # ---------------------------- DATA -------------------------------------------
 data:
-  root_dir: /data0/datasets/weatherbench/data/weatherbench/era5/2.8125deg_equally_np
+  root_dir: /data0/datasets/weatherbench/data/weatherbench/era5/2.8125deg_forecast_3days
   variables: [
     "t2m",
     "u10",
@@ -113,8 +113,8 @@ data:
   # history: 1
   # window: 0
   subsample: 1
-  buffer_size: 10000
+  buffer_size: 1000
   batch_size: 128
-  num_workers: 2
+  num_workers: 1
   pin_memory: False
 
