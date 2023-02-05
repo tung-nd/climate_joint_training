@@ -8,6 +8,7 @@ from src.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from src.utils.metrics import (
     lat_weighted_acc,
     lat_weighted_mse,
+    lat_weighted_mse_val,
     lat_weighted_rmse,
 )
 
@@ -82,7 +83,7 @@ class ForecastLitModule(LightningModule):
             variables,
             out_variables,
             transform=self.denormalization,
-            metrics=[lat_weighted_rmse, lat_weighted_acc],
+            metrics=[lat_weighted_mse_val, lat_weighted_rmse, lat_weighted_acc],
             lat=self.lat,
             clim=self.val_clim,
             log_postfix=log_postfix,
@@ -118,7 +119,7 @@ class ForecastLitModule(LightningModule):
             variables,
             out_variables,
             pred_steps,
-            [lat_weighted_rmse, lat_weighted_acc],
+            [lat_weighted_mse_val, lat_weighted_rmse, lat_weighted_acc],
             self.denormalization,
             lat=self.lat,
             log_steps=log_steps,
