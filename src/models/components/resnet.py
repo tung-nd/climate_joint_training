@@ -2,6 +2,7 @@ from math import log
 import torch
 from torch import nn
 from .cnn_blocks import PeriodicConv2D, ResidualBlock, Upsample
+from src.datamodules import CONSTANTS, NAME_TO_VAR
 
 # Large based on https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/unet.py
 # MIT License
@@ -70,41 +71,44 @@ class ResNet(nn.Module):
             self.norm = nn.Identity()
         out_channels = self.out_channels
         self.final = PeriodicConv2D(hidden_channels, out_channels, kernel_size=7, padding=3)
+        
+    def get_constant_ids(self, all_ids, vars):
+        constant_ids = []
+        for id in all_ids:
+            var = vars[id]
+            if var in NAME_TO_VAR:
+                if NAME_TO_VAR[var] in CONSTANTS:
+                    constant_ids.append(id)
+        return constant_ids
 
-    def predict(self, x):
-        if len(x.shape) == 5:
-            x = x.flatten(1, 2)
+    def predict(self, inp, in_vars, out_vars):
+        # inp: B, T, C, H, W
+        x = inp.flatten(1, 2)
         x = self.image_proj(x)
 
         for m in self.blocks:
             x = m(x)
 
-        return self.final(self.activation(self.norm(x)))
+        pred = self.final(self.activation(self.norm(x))) # B, C, H, W
+        # do not predict constant variables
+        out_var_id_constants = self.get_constant_ids(range(pred.shape[-3]), out_vars)
+        if len(out_var_id_constants) > 0:
+            in_var_id_constants = self.get_constant_ids(range(inp.shape[-3]), in_vars)
+            assert len(in_var_id_constants) == len(out_var_id_constants)
+            pred[:, out_var_id_constants] = inp[:, 0, in_var_id_constants].to(pred.dtype)
+        return pred
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, out_variables, metric, lat, return_pred=False):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, variables, out_variables, metric, lat, return_pred=False):
         # B, C, H, W
-        pred = self.predict(x)
+        pred = self.predict(x, variables, out_variables)
         if return_pred:
             return [m(pred, y, out_variables, lat) for m in metric], x, pred
         else:
             return [m(pred, y, out_variables, lat) for m in metric], x
-
-    def rollout(self, x, y, clim, variables, out_variables, steps, metric, transform, lat, log_steps, log_days, preds=None):
-        if steps > 1:
-            assert len(variables) == len(out_variables)
-            
-        if preds is not None:
-            return [m(preds.unsqueeze(1), y.unsqueeze(1), clim, transform, out_variables, lat, log_steps, log_days) for m in metric], preds
-
-        preds = []
-        for _ in range(steps):
-            x = self.predict(x)
-            preds.append(x)
-        preds = torch.stack(preds, dim=1)
-        if len(y.shape) == 4:
-            y = y.unsqueeze(1)
-
-        return [m(preds, y, clim, transform, out_variables, lat, log_steps, log_days) for m in metric], preds
+        
+    def evaluate(self, x, y, variables, out_variables, transform, metrics, lat, clim, log_postfix):
+        pred = self.predict(x, variables, out_variables)
+        return [m(pred, y, transform, out_variables, lat, clim, log_postfix) for m in metrics]
 
     def upsample(self, x, y, out_vars, transform, metric):
         with torch.no_grad():

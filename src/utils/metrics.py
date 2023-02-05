@@ -59,97 +59,93 @@ def lat_weighted_mse(pred, y, vars, lat, mask=None):
     return loss_dict
 
 
-def lat_weighted_mse_val(pred, y, clim, transform, vars, lat, log_steps, log_days):
+def lat_weighted_mse_val(pred, y, transform, vars, lat, clim, log_postfix):
     """
-    y: [N, T, 3, H, W]
-    pred: [N, T, 3, H, W]
+    y: [B, C, H, W]
+    pred: [B, C, H, W]
     vars: list of variable names
     lat: H
     """
 
-    error = (pred - y) ** 2  # [N, T, C, H, W]
+    error = (pred - y) ** 2  # [B, C, H, W]
 
     # lattitude weights
     w_lat = np.cos(np.deg2rad(lat))
     w_lat = w_lat / w_lat.mean()  # (H, )
-    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(error.device)  # (1, H, 1)
+    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(dtype=error.dtype, device=error.device)  # (1, H, 1)
 
     loss_dict = {}
     with torch.no_grad():
         for i, var in enumerate(vars):
-            for day, step in zip(log_days, log_steps):
-                loss_dict[f"w_mse_{var}_day_{day}"] = (error[:, step - 1, i] * w_lat).mean()
+            loss_dict[f"w_mse_{var}_{log_postfix}"] = (error[:, i] * w_lat).mean()
 
     loss_dict["w_mse"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
 
     return loss_dict
 
 
-def lat_weighted_rmse(pred, y, clim, transform, vars, lat, log_steps, log_days):
+def lat_weighted_rmse(pred, y, transform, vars, lat, clim, log_postfix):
     """
-    y: [N, T, 3, H, W]
-    pred: [N, T, 3, H, W]
+    y: [B, C, H, W]
+    pred: [B, C, H, W]
     vars: list of variable names
     lat: H
     """
+
     pred = transform(pred)
     y = transform(y)
-    pred = pred.to(torch.float32)
-    y = y.to(torch.float32)
 
-    error = (pred - y) ** 2  # [N, T, 3, H, W]
+    error = (pred - y) ** 2  # [B, C, H, W]
 
     # lattitude weights
     w_lat = np.cos(np.deg2rad(lat))
     w_lat = w_lat / w_lat.mean()  # (H, )
-    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(error.device)
+    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(dtype=error.dtype, device=error.device)
 
     loss_dict = {}
     with torch.no_grad():
         for i, var in enumerate(vars):
-            for day, step in zip(log_days, log_steps):
-                loss_dict[f"w_rmse_{var}_day_{day}"] = torch.mean(
-                    torch.sqrt(torch.mean(error[:, step - 1, i] * w_lat, dim=(-2, -1)))
-                )
+            loss_dict[f"w_rmse_{var}_{log_postfix}"] = torch.mean(
+                torch.sqrt(torch.mean(error[:, i] * w_lat, dim=(-2, -1)))
+            )
 
     loss_dict["w_rmse"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
+
     return loss_dict
 
 
-def lat_weighted_acc(pred, y, clim, transform, vars, lat, log_steps, log_days):
+def lat_weighted_acc(pred, y, transform, vars, lat, clim, log_postfix):
     """
-    y: [N, T, 3, H, W]
-    pred: [N, T, 3, H, W]
+    y: [B, C, H, W]
+    pred: [B C, H, W]
     vars: list of variable names
     lat: H
-    TODO: subtract the climatology
     """
+
     pred = transform(pred)
     y = transform(y)
-    pred = pred.to(torch.float32)
-    y = y.to(torch.float32)
 
     # lattitude weights
     w_lat = np.cos(np.deg2rad(lat))
     w_lat = w_lat / w_lat.mean()  # (H, )
-    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(pred.device)  # [1, H, 1]
+    w_lat = torch.from_numpy(w_lat).unsqueeze(0).unsqueeze(-1).to(dtype=pred.dtype, device=pred.device)  # [1, H, 1]
 
     # clim = torch.mean(y, dim=(0, 1), keepdim=True)
-    clim = clim.to(pred.device)
+    clim = clim.to(device=y.device).unsqueeze(0)
     pred = pred - clim
     y = y - clim
     loss_dict = {}
 
     with torch.no_grad():
         for i, var in enumerate(vars):
-            for day, step in zip(log_days, log_steps):
-                pred_prime = pred[:, step - 1, i] - torch.mean(pred[:, step - 1, i])
-                y_prime = y[:, step - 1, i] - torch.mean(y[:, step - 1, i])
-                loss_dict[f"acc_{var}_day_{day}"] = torch.sum(w_lat * pred_prime * y_prime) / torch.sqrt(
-                    torch.sum(w_lat * pred_prime**2) * torch.sum(w_lat * y_prime**2)
-                )
+            pred_prime = pred[:, i] - torch.mean(pred[:, i])
+            y_prime = y[:, i] - torch.mean(y[:, i])
+            loss_dict[f"acc_{var}_{log_postfix}"] = torch.sum(w_lat * pred_prime * y_prime) / torch.sqrt(
+                torch.sum(w_lat * pred_prime**2) * torch.sum(w_lat * y_prime**2)
+            )
 
     loss_dict["acc"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
+
     return loss_dict
 
 

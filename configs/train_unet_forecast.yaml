@@ -2,14 +2,14 @@ seed_everything: 42
 
 # ---------------------------- TRAINER -------------------------------------------
 trainer:
-  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/mnt/climate_pretraining/outputs/vit}
+  default_root_dir: ${oc.env:AMLT_OUTPUT_DIR,/home/tungnd/climate_joint_training/outputs/forecast_lowres/unet}
 
   precision: 16
 
   gpus: null
   num_nodes: 1
   accelerator: gpu
-  strategy: ddp_find_unused_parameters_false
+  strategy: ddp
 
   min_epochs: 1
   max_epochs: 20
@@ -40,20 +40,20 @@ trainer:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
         dirpath: "${trainer.default_root_dir}/checkpoints"
-        # monitor: "val/w_rmse" # name of the logged metric which determines when model is improving
-        # mode: "min" # "max" means higher metric value is better, can be also "min"
-        # save_top_k: 1 # save k best models (determined by above metric)
+        monitor: "val/w_rmse" # name of the logged metric which determines when model is improving
+        mode: "min" # "max" means higher metric value is better, can be also "min"
+        save_top_k: 1 # save k best models (determined by above metric)
         save_last: True # additionaly always save model from last epoch
         verbose: False
         filename: "epoch_{epoch:03d}"
         auto_insert_metric_name: False
 
-    # - class_path: pytorch_lightning.callbacks.EarlyStopping
-    #   init_args:
-    #     monitor: "train/loss" # name of the logged metric which determines when model is improving
-    #     mode: "min" # "max" means higher metric value is better, can be also "min"
-    #     patience: 100 # how many validation epochs of not improving until training stops
-    #     min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement
+    - class_path: pytorch_lightning.callbacks.EarlyStopping
+      init_args:
+        monitor: "val/w_mse" # name of the logged metric which determines when model is improving
+        mode: "min" # "max" means higher metric value is better, can be also "min"
+        patience: 5 # how many validation epochs of not improving until training stops
+        min_delta: 0. # minimum change in the monitored metric needed to qualify as an improvement
 
     - class_path: pytorch_lightning.callbacks.RichModelSummary
       init_args:
@@ -64,36 +64,100 @@ trainer:
 # ---------------------------- MODEL -------------------------------------------
 model:
   optimizer: "adam"
-  lr: 0.0005
+  lr: 5e-4
   weight_decay: 1e-5
-  warmup_epochs: 5
-  max_epochs: 30
+  warmup_epochs: 5000
+  max_epochs: 50000
   warmup_start_lr: 1e-8
   eta_min: 1e-8
 
   net:
     class_path: src.models.components.unet.Unet
     init_args:
-      in_channels: 3
+      in_channels: 65
+      history: 3
       hidden_channels: 64
-      out_channels: 1
+      out_channels: 65
       n_blocks: 2
 
 # ---------------------------- DATA -------------------------------------------
 data:
-  root_dir: /datadrive/datasets/5.625deg
-  inp_vars: [
-      "2m_temperature",
-      "10m_u_component_of_wind",
-      "10m_v_component_of_wind",
-    ]
-  out_vars: ["2m_temperature"]
-  train_start_year: 1979
-  val_start_year: 2015
-  test_start_year: 2017
-  end_year: 2018
-  pred_range: 6
+  task: "forecasting"
+  inp_root_dir: /data0/datasets/weatherbench/data/weatherbench/era5/5.625deg_npz
+  out_root_dir: /data0/datasets/weatherbench/data/weatherbench/era5/5.625deg_npz
+  in_vars: [
+    'orography',
+    'land_sea_mask',
+    'lattitude',
+    '2m_temperature',
+    '10m_u_component_of_wind',
+    '10m_v_component_of_wind',
+    'toa_incident_solar_radiation',
+    'total_precipitation',
+    'total_cloud_cover',
+    'geopotential_50',
+    'geopotential_250',
+    'geopotential_500',
+    'geopotential_600',
+    'geopotential_700',
+    'geopotential_850',
+    'geopotential_925',
+    'u_component_of_wind_50',
+    'u_component_of_wind_250',
+    'u_component_of_wind_500',
+    'u_component_of_wind_600',
+    'u_component_of_wind_700',
+    'u_component_of_wind_850',
+    'u_component_of_wind_925',
+    'v_component_of_wind_50',
+    'v_component_of_wind_250',
+    'v_component_of_wind_500',
+    'v_component_of_wind_600',
+    'v_component_of_wind_700',
+    'v_component_of_wind_850',
+    'v_component_of_wind_925',
+    'temperature_50',
+    'temperature_250',
+    'temperature_500',
+    'temperature_600',
+    'temperature_700',
+    'temperature_850',
+    'temperature_925',
+    'relative_humidity_50',
+    'relative_humidity_250',
+    'relative_humidity_500',
+    'relative_humidity_600',
+    'relative_humidity_700',
+    'relative_humidity_850',
+    'relative_humidity_925',
+    'specific_humidity_50',
+    'specific_humidity_250',
+    'specific_humidity_500',
+    'specific_humidity_600',
+    'specific_humidity_700',
+    'specific_humidity_850',
+    'specific_humidity_925',
+    'vorticity_50',
+    'vorticity_250',
+    'vorticity_500',
+    'vorticity_600',
+    'vorticity_700',
+    'vorticity_850',
+    'vorticity_925',
+    'potential_vorticity_50',
+    'potential_vorticity_250',
+    'potential_vorticity_500',
+    'potential_vorticity_600',
+    'potential_vorticity_700',
+    'potential_vorticity_850',
+    'potential_vorticity_925'
+  ]
+  out_vars: null # null means predicting everything
+  history: 3
+  window: 6
+  pred_range: 72
   subsample: 1
+  buffer_size: 10000
   batch_size: 128
   num_workers: 2
   pin_memory: False

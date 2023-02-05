@@ -54,8 +54,8 @@ class ForecastLitModule(LightningModule):
         self.test_clim = clim
 
     def training_step(self, batch: Any, batch_idx: int):
-        x, y, _, out_variables = batch
-        loss_dict, _ = self.net.forward(x, y, out_variables, [lat_weighted_mse], lat=self.lat)
+        x, y, variables, out_variables = batch
+        loss_dict, _ = self.net.forward(x, y, variables, out_variables, [lat_weighted_mse], lat=self.lat)
         loss_dict = loss_dict[0]
         for var in loss_dict.keys():
             self.log(
@@ -70,23 +70,24 @@ class ForecastLitModule(LightningModule):
     def validation_step(self, batch: Any, batch_idx: int):
         x, y, variables, out_variables = batch
         
-        pred_steps = 1
-        log_steps = [1]
-        log_days = [int(self.pred_range / 24)]
+        if self.pred_range < 24:
+            log_postfix = f"{self.pred_range}_hours"
+        else:
+            days = int(self.pred_range / 24)
+            log_postfix = f"{days}_days"
 
-        all_loss_dicts, _ = self.net.rollout(
+        all_loss_dicts = self.net.evaluate(
             x,
             y,
-            self.val_clim,
             variables,
             out_variables,
-            pred_steps,
-            [lat_weighted_rmse, lat_weighted_acc],
-            self.denormalization,
+            transform=self.denormalization,
+            metrics=[lat_weighted_rmse, lat_weighted_acc],
             lat=self.lat,
-            log_steps=log_steps,
-            log_days=log_days,
+            clim=self.val_clim,
+            log_postfix=log_postfix,
         )
+        
         loss_dict = {}
         for d in all_loss_dicts:
             for k in d.keys():
@@ -166,5 +167,10 @@ class ForecastLitModule(LightningModule):
             self.hparams.warmup_start_lr,
             self.hparams.eta_min,
         )
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'interval': 'step', # or 'epoch'
+            'frequency': 1
+        }
 
-        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler}
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}
