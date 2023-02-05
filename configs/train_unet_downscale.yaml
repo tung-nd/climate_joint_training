@@ -72,7 +72,7 @@ model:
   eta_min: 1e-8
 
   net:
-    class_path: src.models.components.resnet.ResNet
+    class_path: src.models.components.unet.Unet
     init_args:
       in_channels: 65
       history: 1
