@@ -1,3 +1,4 @@
+from audioop import bias
 from typing import Any
 
 import torch
@@ -5,7 +6,17 @@ from pytorch_lightning import LightningModule
 from torchvision.transforms import transforms
 
 from src.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
-from src.utils.metrics import mse, rmse, pearson, mean_bias
+from src.utils.metrics import mse, mse_val, rmse, pearson, mean_bias
+
+
+def interpolate_input(x: torch.Tensor, y: torch.Tensor):
+    # interpolate input to match output size
+    n, t, _, _, _ = x.shape
+    x = x.flatten(0, 1)
+    out_h, out_w = y.shape[-2], y.shape[-1]
+    x = torch.nn.functional.interpolate(x, (out_h, out_w), mode="bilinear")
+    x = x.unflatten(0, sizes=(n, t))
+    return x
 
 
 class DownscaleLitModule(LightningModule):
@@ -37,8 +48,10 @@ class DownscaleLitModule(LightningModule):
         self.denormalization = transforms.Normalize(mean, std)
 
     def training_step(self, batch: Any, batch_idx: int):
-        x, y, _, out_variables = batch
-        loss_dict, _ = self.net.forward(x, y, out_variables, [mse], lat=None)
+        x, y, variables, out_variables = batch
+        x = interpolate_input(x, y)
+        
+        loss_dict, _ = self.net.forward(x, y, variables, out_variables, [mse], lat=None)
         loss_dict = loss_dict[0]
         for var in loss_dict.keys():
             self.log(
@@ -52,10 +65,20 @@ class DownscaleLitModule(LightningModule):
 
     def validation_step(self, batch: Any, batch_idx: int):
         x, y, variables, out_variables = batch
+        x = interpolate_input(x, y)
 
-        all_loss_dicts, _ = self.net.upsample(
-            x, y, out_variables, self.denormalization, [rmse, pearson, mean_bias]
+        all_loss_dicts = self.net.evaluate(
+            x,
+            y,
+            variables,
+            out_variables,
+            transform=self.denormalization,
+            metrics=[mse_val, rmse, pearson, mean_bias],
+            lat=None,
+            clim=None,
+            log_postfix=None,
         )
+        
         loss_dict = {}
         for d in all_loss_dicts:
             for k in d.keys():
@@ -75,10 +98,20 @@ class DownscaleLitModule(LightningModule):
 
     def test_step(self, batch: Any, batch_idx: int):
         x, y, variables, out_variables = batch
+        x = interpolate_input(x, y)
         
-        all_loss_dicts, _ = self.net.upsample(
-            x, y, out_variables, self.denormalization, [rmse, pearson, mean_bias]
+        all_loss_dicts = self.net.evaluate(
+            x,
+            y,
+            variables,
+            out_variables,
+            transform=self.denormalization,
+            metrics=[mse_val, rmse, pearson, mean_bias],
+            lat=None,
+            clim=None,
+            log_postfix=None,
         )
+        
         loss_dict = {}
         for d in all_loss_dicts:
             for k in d.keys():
@@ -122,5 +155,10 @@ class DownscaleLitModule(LightningModule):
             self.hparams.warmup_start_lr,
             self.hparams.eta_min,
         )
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'interval': 'step', # or 'epoch'
+            'frequency': 1
+        }
 
-        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler}
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}

@@ -3,13 +3,13 @@ import os
 from pytorch_lightning.utilities.cli import LightningCLI
 
 from src.models.downscale_module import DownscaleLitModule
-from src.datamodules.era5_downscale_datamodule import ERA5DownscaleDataModule
+from src.datamodules.era5_single_task_datamodule import ERA5SingleTaskDataModule
 
 
 def main():
     cli = LightningCLI(
         model_class=DownscaleLitModule,
-        datamodule_class=ERA5DownscaleDataModule,
+        datamodule_class=ERA5SingleTaskDataModule,
         seed_everything_default=42,
         save_config_overwrite=True,
         run=False,
@@ -26,7 +26,7 @@ def main():
     # fit() runs the training
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
 
-    cli.trainer.test(cli.model, datamodule=cli.datamodule)
+    cli.trainer.test(cli.model, datamodule=cli.datamodule, ckpt_path='best')
 
 
 if __name__ == "__main__":

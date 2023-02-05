@@ -130,7 +130,7 @@ class Downscale(IterableDataset):
             )
             y = torch.from_numpy(y)
 
-            yield x, y, variables, out_variables
+            yield x.unsqueeze(1), y, variables, out_variables
 
 
 class IndividualDataIter(IterableDataset):

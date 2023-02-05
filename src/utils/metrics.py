@@ -151,7 +151,25 @@ def lat_weighted_acc(pred, y, transform, vars, lat, clim, log_postfix):
 
 ### Downscaling metrics
 
-def rmse(pred, y, transform, vars):
+def mse_val(pred, y, transform, vars, lat, clim, log_postfix):
+    """
+    y: [N, C, H, W]
+    pred: [N, C, H, W]
+    vars: list of variable names
+    """
+    error = (pred - y) ** 2 # [B, C, H, W]
+
+    loss_dict = {}
+
+    with torch.no_grad():
+        for i, var in enumerate(vars):
+            loss_dict[f"mse_{var}"] = error[:, i].mean()
+            
+    loss_dict["mse"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
+
+    return loss_dict
+
+def rmse(pred, y, transform, vars, lat, clim, log_postfix):
     """
     y: [N, C, H, W]
     pred: [N, C, H, W]
@@ -170,10 +188,12 @@ def rmse(pred, y, transform, vars):
             loss_dict[f"rmse_{var}"] = torch.mean(
                 torch.sqrt(torch.mean(error[:, i], dim=(-2, -1)))
             )
+            
+    loss_dict["rmse"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
 
     return loss_dict
 
-def pearson(pred, y, transform, vars):
+def pearson(pred, y, transform, vars, lat, clim, log_postfix):
     """
     y: [N, C, H, W]
     pred: [N, C, H, W]
@@ -191,10 +211,12 @@ def pearson(pred, y, transform, vars):
                 pred[:, i].flatten().cpu().numpy(),
                 y[:, i].flatten().cpu().numpy()
             )[0]
+            
+    loss_dict["pearson"] = np.mean([loss_dict[k] for k in loss_dict.keys()])
 
     return loss_dict
 
-def mean_bias(pred, y, transform, vars):
+def mean_bias(pred, y, transform, vars, lat, clim, log_postfix):
     """
     y: [N, C, H, W]
     pred: [N, C, H, W]
@@ -209,6 +231,8 @@ def mean_bias(pred, y, transform, vars):
     with torch.no_grad():
         for i, var in enumerate(vars):
             loss_dict[f"mean_bias_{var}"] = y.mean() - pred.mean()
+            
+    loss_dict["mean_bias"] = np.mean([loss_dict[k].cpu() for k in loss_dict.keys()])
 
     return loss_dict
 
