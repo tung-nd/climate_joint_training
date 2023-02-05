@@ -13,6 +13,7 @@ class Unet(nn.Module):
     def __init__(
         self,
         in_channels,
+        history,
         hidden_channels=64,
         activation="leaky",
         out_channels=None,
@@ -25,7 +26,7 @@ class Unet(nn.Module):
         n_blocks: int = 2,
     ) -> None:
         super().__init__()
-        self.in_channels = in_channels
+        self.in_channels = in_channels * history
         if out_channels is None:
             out_channels = in_channels
         self.out_channels = out_channels
@@ -133,6 +134,8 @@ class Unet(nn.Module):
         self.final = PeriodicConv2D(in_channels, out_channels, kernel_size=7, padding=3)
 
     def predict(self, x):
+        if len(x.shape) == 5:
+            x = x.flatten(1, 2)
         x = self.image_proj(x)
 
         h = [x]
