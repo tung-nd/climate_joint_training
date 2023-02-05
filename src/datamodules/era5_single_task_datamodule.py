@@ -39,6 +39,9 @@ class ERA5SingleTaskDataModule(LightningDataModule):
         super().__init__()
 
         self.save_hyperparameters(logger=False)
+        
+        out_vars = out_vars if out_vars is not None else in_vars
+        self.hparams.out_vars = out_vars
 
         if task == "forecasting":
             assert inp_root_dir == out_root_dir
@@ -104,7 +107,7 @@ class ERA5SingleTaskDataModule(LightningDataModule):
     def get_climatology(self, split="val"):
         path = os.path.join(self.hparams.out_root_dir, split, "climatology.npz")
         clim_dict = np.load(path)
-        clim = np.concatenate([clim_dict[var] for var in self.hparams.out_vars if var in clim_dict])
+        clim = np.concatenate([clim_dict[var] for var in self.hparams.out_vars])
         clim = torch.from_numpy(clim)
         return clim
 

@@ -37,6 +37,7 @@ def nc2np(path, variables, years, save_dir, partition, num_shards_per_year):
         if partition == "train":
             normalize_mean[f] = constant_values[f].mean(axis=(0, 2, 3))
             normalize_std[f] = constant_values[f].std(axis=(0, 2, 3))
+        climatology[f] = constant_values[f].mean(axis=0)
 
     for year in tqdm(years):
         np_vars = {}
@@ -142,8 +143,10 @@ def nc2np(path, variables, years, save_dir, partition, num_shards_per_year):
         np.savez(os.path.join(save_dir, "normalize_std.npz"), **normalize_std)
 
     for var in climatology.keys():
-        climatology[var] = np.stack(climatology[var], axis=0)
-    climatology = {k: np.mean(v, axis=0) for k, v in climatology.items()}
+        if var not in constant_fields:
+            climatology[var] = np.stack(climatology[var], axis=0)
+            climatology[var] = np.mean(climatology[var], axis=0)
+    # climatology = {k: np.mean(v, axis=0) for k, v in climatology.items()}
     np.savez(
         os.path.join(save_dir, partition, "climatology.npz"),
         **climatology,
