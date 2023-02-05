@@ -76,9 +76,9 @@ model:
     init_args:
       in_channels: 65
       history: 1
-      hidden_channels: 128
+      hidden_channels: 64
       out_channels: 5
-      n_blocks: 28
+      n_blocks: 2
 
 # ---------------------------- DATA -------------------------------------------
 data:
