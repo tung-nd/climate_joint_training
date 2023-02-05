@@ -1,16 +1,15 @@
-from math import log
 from typing import List, Tuple, Union
 
 import torch
 from torch import nn
 from .cnn_blocks import PeriodicConv2D, DownBlock, UpBlock, MiddleBlock, Downsample, Upsample
-from src.datamodules import CONSTANTS, NAME_TO_VAR
+from .base import BaseModel
 
 # Large based on https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/unet.py
 # MIT License
 
 
-class Unet(nn.Module):
+class Unet(BaseModel):
     def __init__(
         self,
         in_channels,
@@ -122,15 +121,6 @@ class Unet(nn.Module):
             self.norm = nn.Identity()
         out_channels = self.out_channels
         self.final = PeriodicConv2D(in_channels, out_channels, kernel_size=7, padding=3)
-        
-    def get_constant_ids(self, all_ids, vars):
-        constant_ids = []
-        for id in all_ids:
-            var = vars[id]
-            if var in NAME_TO_VAR:
-                if NAME_TO_VAR[var] in CONSTANTS:
-                    constant_ids.append(id)
-        return constant_ids
 
     def predict(self, inp, in_vars, out_vars):
         # inp: B, T, C, H, W
@@ -154,25 +144,7 @@ class Unet(nn.Module):
                 x = m(x)
 
         pred = self.final(self.activation(self.norm(x)))
-        # do not predict constant variables
-        out_var_id_constants = self.get_constant_ids(range(pred.shape[-3]), out_vars)
-        if len(out_var_id_constants) > 0:
-            in_var_id_constants = self.get_constant_ids(range(inp.shape[-3]), in_vars)
-            assert len(in_var_id_constants) == len(out_var_id_constants)
-            pred[:, out_var_id_constants] = inp[:, 0, in_var_id_constants].to(pred.dtype)
-        return pred
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor, variables, out_variables, metric, lat, return_pred=False):
-        # B, C, H, W
-        pred = self.predict(x, variables, out_variables)
-        if return_pred:
-            return [m(pred, y, out_variables, lat) for m in metric], x, pred
-        else:
-            return [m(pred, y, out_variables, lat) for m in metric], x
-
-    def evaluate(self, x, y, variables, out_variables, transform, metrics, lat, clim, log_postfix):
-        pred = self.predict(x, variables, out_variables)
-        return [m(pred, y, transform, out_variables, lat, clim, log_postfix) for m in metrics]
+        return self.replace_constant_variables(inp, pred, in_vars, out_vars)
 
 # model = Unet(in_channels=2, out_channels=2).cuda()
 # x = torch.randn((64, 2, 32, 64)).cuda()
