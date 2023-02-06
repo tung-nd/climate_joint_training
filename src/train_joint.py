@@ -1,9 +1,11 @@
 import os
 
-from pytorch_lightning.utilities.cli import LightningCLI
+from pytorch_lightning.cli import LightningCLI
 
 from src.models.joint_module import JointLitModule
 from src.datamodules.era5_joint_datamodule import ERA5JointDataModule
+
+os.environ["NCCL_P2P_DISABLE"] = "1"
 
 
 def main():
@@ -13,7 +15,6 @@ def main():
         seed_everything_default=42,
         save_config_overwrite=True,
         run=False,
-        auto_registry=True,
         parser_kwargs={"parser_mode": "omegaconf", "error_handler": None},
     )
     os.makedirs(cli.trainer.default_root_dir, exist_ok=True)
@@ -41,7 +42,7 @@ def main():
     # fit() runs the training
     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
 
-    cli.trainer.test(cli.model, datamodule=cli.datamodule)
+    cli.trainer.test(cli.model, datamodule=cli.datamodule, ckpt_path='best')
 
 
 if __name__ == "__main__":

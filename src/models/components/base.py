@@ -37,6 +37,9 @@ class BaseModel(nn.Module):
         else:
             return [m(pred, y, out_variables, lat) for m in metric], x
         
-    def evaluate(self, x, y, variables, out_variables, transform, metrics, lat, clim, log_postfix):
+    def evaluate(self, x, y, variables, out_variables, transform, metrics, lat, clim, log_postfix, return_pred=False):
         pred = self.predict(x, variables, out_variables)
-        return [m(pred, y, transform, out_variables, lat, clim, log_postfix) for m in metrics]
+        if return_pred:
+            return [m(pred, y, transform, out_variables, lat, clim, log_postfix) for m in metrics], pred
+        else:
+            return [m(pred, y, transform, out_variables, lat, clim, log_postfix) for m in metrics]
