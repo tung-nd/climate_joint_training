@@ -131,6 +131,54 @@ class Downscale(IterableDataset):
             y = torch.from_numpy(y)
 
             yield x.unsqueeze(1), y, variables, out_variables
+            
+            
+class Joint(IterableDataset):
+    def __init__(
+        self, dataset: NpyReader, pred_range: int = 6, history: int = 3, window: int = 6
+    ) -> None:
+        super().__init__()
+        self.dataset = dataset
+        self.pred_range = pred_range
+        self.history = history
+        self.window = window
+        
+    def __iter__(self):
+        # inp_data: low-res, out_data: high-res
+        for inp_data, out_data, variables, out_variables in self.dataset:
+            x = np.concatenate(
+                [inp_data[k].astype(np.float32) for k in inp_data.keys()], axis=1
+            )
+            x = torch.from_numpy(x)
+            y = np.concatenate(
+                [out_data[k].astype(np.float32) for k in out_data.keys()], axis=1
+            )
+            y = torch.from_numpy(y)
+            
+            # input of low-res forecasting
+            inputs = x.unsqueeze(0).repeat_interleave(self.history, dim=0)
+            for t in range(self.history):
+                inputs[t] = inputs[t].roll(-t * self.window, dims=0)
+
+            last_idx = -((self.history - 1) * self.window + self.pred_range)
+
+            inputs = inputs[:, :last_idx].transpose(0, 1)  # N, T, C, H, W
+            
+            # output of low-res forecasting
+            predict_ranges = (
+                torch.ones(inputs.shape[0]).to(torch.long) * self.pred_range
+            )
+            output_ids = (
+                torch.arange(inputs.shape[0])
+                + (self.history - 1) * self.window
+                + predict_ranges
+            )
+            forecast_outputs = x[output_ids]
+            
+            # output of downscaling
+            downscale_outputs = y[output_ids]
+            
+            yield inputs, forecast_outputs, downscale_outputs, variables, out_variables
 
 
 class IndividualDataIter(IterableDataset):
@@ -155,6 +203,35 @@ class IndividualDataIter(IterableDataset):
                     ), variables, out_variables
                 else:
                     yield inp[i], out[i], variables, out_variables
+                    
+
+class IndividualJointDataIter(IterableDataset):
+    def __init__(
+        self,
+        dataset: Union[Forecast, Downscale],
+        transforms: torch.nn.Module,
+        forecast_output_transforms: torch.nn.Module,
+        downscale_output_transforms: torch.nn.Module,
+    ):
+        super().__init__()
+        self.dataset = dataset
+        self.transforms = transforms
+        self.forecast_output_transforms = forecast_output_transforms
+        self.downscale_output_transforms = downscale_output_transforms
+
+    def __iter__(self):
+        for inp, forecast_out, downscale_out, variables, out_variables in self.dataset:
+            assert inp.shape[0] == forecast_out.shape[0] and forecast_out.shape[0] == downscale_out.shape[0]
+            for i in range(inp.shape[0]):
+                if self.transforms is not None:
+                    yield (
+                        self.transforms(inp[i]),
+                        self.forecast_output_transforms(forecast_out[i]),
+                        self.downscale_output_transforms(downscale_out[i]),
+                        variables, out_variables
+                    )
+                else:
+                    yield inp[i], forecast_out[i], downscale_out[i], variables, out_variables
 
 
 class ShuffleIterableDataset(IterableDataset):
