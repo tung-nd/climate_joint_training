@@ -193,6 +193,18 @@ def rmse(pred, y, transform, vars, lat, clim, log_postfix):
 
     return loss_dict
 
+def remove_nans(pred: torch.Tensor, gt: torch.Tensor):
+    # pred and gt are two flattened arrays
+    pred_nan_ids = torch.isnan(pred) | torch.isinf(pred)
+    pred = pred[~pred_nan_ids]
+    gt = gt[~pred_nan_ids]
+
+    gt_nan_ids = torch.isnan(gt) | torch.isinf(gt)
+    pred = pred[~gt_nan_ids]
+    gt = gt[~gt_nan_ids]
+
+    return pred, gt
+
 def pearson(pred, y, transform, vars, lat, clim, log_postfix):
     """
     y: [N, C, H, W]
@@ -207,9 +219,15 @@ def pearson(pred, y, transform, vars, lat, clim, log_postfix):
     loss_dict = {}
     with torch.no_grad():
         for i, var in enumerate(vars):
+            # print (var)
+            pred_, y_ = pred[:, i].flatten(), y[:, i].flatten()
+            pred_, y_ = remove_nans(pred_, y_)
+            # if len(pred_) == 0:
+            #     import sys
+            #     sys.exit()
             loss_dict[f"pearsonr_{var}"] = stats.pearsonr(
-                pred[:, i].flatten().cpu().numpy(),
-                y[:, i].flatten().cpu().numpy()
+                pred_.cpu().numpy(),
+                y_.cpu().numpy()
             )[0]
             
     loss_dict["pearson"] = np.mean([loss_dict[k] for k in loss_dict.keys()])
